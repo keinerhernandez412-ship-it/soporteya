@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<!-- Piezas comunes de SoporteYa. Cada página las incluye con th:replace. -->
+
+<head th:fragment="head(titulo)">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title th:text="${titulo} + ' · SoporteYa'">SoporteYa</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" th:href="@{/css/soporteya.css}">
+  <!-- Unidad 4 · el código CSRF queda disponible para el JavaScript que hace POST con fetch -->
+  <meta name="_csrf" th:if="${_csrf}" th:content="${_csrf.token}">
+  <meta name="_csrf_header" th:if="${_csrf}" th:content="${_csrf.headerName}">
+</head>
+
+<body>
+  <!-- activo: la opción del menú que se resalta. sec:authorize muestra cada opción solo al rol que puede usarla. -->
+  <nav th:fragment="menu(activo)" class="navbar navbar-expand-lg navbar-dark navbar-sy">
+    <div class="container">
+      <a class="navbar-brand fw-bold" th:href="@{/}">SoporteYa</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu"
+              aria-controls="menu" aria-expanded="false" aria-label="Abrir el menú">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="menu">
+        <ul class="navbar-nav me-auto" sec:authorize="isAuthenticated()">
+          <li class="nav-item">
+            <a class="nav-link" th:href="@{/tickets}" th:classappend="${activo == 'tickets'} ? 'active'">Mis tickets
+              <!-- Unidad 4 · lo llena soporteya.js con fetch -->
+              <span id="contadorPendientes" class="badge rounded-pill text-bg-warning" hidden></span></a>
+          </li>
+          <li class="nav-item" sec:authorize="hasAnyRole('TECNICO', 'COORDINADOR')">
+            <a class="nav-link" th:href="@{/tablero}" th:classappend="${activo == 'tablero'} ? 'active'">Tablero</a>
+          </li>
+          <li class="nav-item" sec:authorize="hasRole('COORDINADOR')">
+            <a class="nav-link" th:href="@{/admin/categorias}" th:classappend="${activo == 'categorias'} ? 'active'">Categorías</a>
+          </li>
+          <li class="nav-item" sec:authorize="hasRole('COORDINADOR')">
+            <a class="nav-link" th:href="@{/admin/usuarios}" th:classappend="${activo == 'usuarios'} ? 'active'">Usuarios</a>
+          </li>
+          <li class="nav-item" sec:authorize="hasRole('COORDINADOR')">
+            <a class="nav-link" th:href="@{/admin/indicadores}" th:classappend="${activo == 'indicadores'} ? 'active'">Indicadores</a>
+          </li>
+        </ul>
+        <!-- Con sesión: nombre, rol y salir. Cerrar sesión es un POST (lleva el código CSRF). -->
+        <div class="d-flex align-items-center gap-3 ms-auto" sec:authorize="isAuthenticated()">
+          <span class="navbar-text small text-white">
+            <b th:text="${yo.nombreCompleto}">Ana Pérez</b> · <span th:text="${yo.rol.etiqueta}">Solicitante</span>
+          </span>
+          <form th:action="@{/logout}" method="post">
+            <button type="submit" class="btn btn-sm btn-outline-light">Salir</button>
+          </form>
+        </div>
+        <!-- Sin sesión -->
+        <div class="d-flex gap-2 ms-auto" sec:authorize="isAnonymous()">
+          <a class="btn btn-sm btn-light" th:href="@{/login}">Ingresar</a>
+          <a class="btn btn-sm btn-outline-light" th:href="@{/registro}">Registrarse</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Mensajes «flash»: llegan después de un redirect y duran una sola petición -->
+  <div th:fragment="mensajes">
+    <div class="alert alert-success alert-dismissible fade show" role="alert" th:if="${ok}">
+      <span th:text="${ok}">Guardado</span>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+    <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}">Error</div>
+  </div>
+
+  <!-- Insignias con parámetro: el color sale de la clase CSS estado-… o prioridad-… -->
+  <span th:fragment="estado(e)" th:class="|badge estado-${e.name()}|" th:text="${e.etiqueta}">Abierto</span>
+  <span th:fragment="prioridad(p)" th:class="|badge prioridad-${p.name()}|" th:text="${p.etiqueta}">Alta</span>
+
+  <!-- Una columna del tablero: título, lista de tickets y si se muestra el botón «Tomar» -->
+  <div class="col-lg-4" th:fragment="columna(titulo, lista, sePuedeTomar)">
+    <div class="columna">
+      <h2 class="h6 d-flex justify-content-between">
+        <span th:text="${titulo}">Abiertos</span>
+        <span class="badge text-bg-secondary" th:text="${#lists.size(lista)}">3</span>
+      </h2>
+      <p class="small text-muted" th:if="${#lists.isEmpty(lista)}">Nada por aquí.</p>
+      <div class="card card-body tarjeta-ticket mb-2 py-2" th:each="t : ${lista}" th:classappend="${t.vencido} ? 'vencido'">
+        <div class="d-flex justify-content-between small">
+          <a th:href="@{/tickets/{id}(id=${t.id})}" th:text="${t.codigo}">SY-00001</a>
+          <span th:replace="~{fragmentos :: prioridad(${t.prioridad})}"></span>
+        </div>
+        <div class="fw-semibold" th:text="${t.asunto}">Asunto</div>
+        <div class="small text-muted" th:text="|${t.categoria} · ${t.solicitante}|">Hardware · Ana</div>
+        <div class="small" th:classappend="${t.vencido} ? 'text-danger fw-semibold' : 'text-muted'"
+             th:text="'Límite: ' + ${#temporals.format(t.fechaLimite, 'd MMM, h:mm a')}">Límite</div>
+        <div class="small" th:if="${t.tecnico}" th:text="'Técnico: ' + ${t.tecnico}">Técnico</div>
+        <form th:if="${sePuedeTomar and yo.rol.name() == 'TECNICO'}"
+              th:action="@{/tablero/{id}/tomar(id=${t.id})}" method="post" class="mt-2">
+          <button type="submit" class="btn btn-sm btn-primary">Tomar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <th:block th:fragment="pie">
+    <footer class="text-center text-muted small py-4 border-top mt-5">
+      SoporteYa · Mesa de ayuda de TI · Proyecto guía ADSO · SENA
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Unidad 4 · funciones comunes de JavaScript, solo con sesión iniciada -->
+    <div id="avisos" class="toast-container position-fixed bottom-0 end-0 p-3"></div>
+    <script sec:authorize="isAuthenticated()" th:src="@{/js/soporteya.js}"></script>
+  </th:block>
+</body>
+</html>

@@ -1,0 +1,33 @@
+# Levanta SoporteYa completo con un solo comando:  docker compose up --build
+# Las claves se leen del archivo .env (copie .env.example y cámbielas)
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: soporteya
+      POSTGRES_USER: adso
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - datos:/var/lib/postgresql/data      # los datos sobreviven a «docker compose down»
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U adso -d soporteya"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy          # espera a que PostgreSQL acepte conexiones
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/soporteya   # «db» es el nombre del servicio, no localhost
+      DB_USER: adso
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRETO: ${JWT_SECRETO}
+    ports:
+      - "8080:8080"
+
+volumes:
+  datos:
